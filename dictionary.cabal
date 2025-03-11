@@ -76,6 +76,7 @@ executable dictionary
                     , warp
                     , wai
                     , http-types
+                    , filepath
 
     -- Directories containing source files.
     hs-source-dirs:   app

@@ -17,6 +17,8 @@ import Network.HTTP.Types (status200, status400)
 import Network.Wai (Application, pathInfo, responseLBS)
 import Network.Wai.Handler.Warp (run)
 import Control.Monad.IO.Class (MonadIO(liftIO))
+import System.Environment (getExecutablePath)
+import System.FilePath (takeDirectory, (</>))
 
 -- Define the Trie data structure
 data Trie = Trie
@@ -82,10 +84,9 @@ search word trie = maybe False endOfWord (T.foldl' searchChar (Just trie) word)
 
 main :: IO ()
 main = do
-  dict <- TIO.readFile "dictionary_keys.txt"
-  -- putStrLn "Enter a board:"
-  -- hFlush stdout
-  -- board <- getLine
+  exePath <- getExecutablePath
+  let dictPath = takeDirectory exePath </> "updated_dictionary_keys.txt"
+  dict <- TIO.readFile dictPath
   let wds = T.lines dict
   let trie = insertWords wds emptyTrie
   run 8081 $ application trie
