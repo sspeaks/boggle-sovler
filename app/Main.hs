@@ -1,29 +1,33 @@
+{-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import Control.Monad.IO.Class (MonadIO (liftIO))
-import Data.Array qualified as A
-import Data.ByteString.Lazy qualified as BSL
-import Data.Char (toLower)
-import Data.List (nub, sortBy)
-import Data.Map.Strict (Map)
-import Data.Map.Strict qualified as Map
-import Data.Ord (Down (..), comparing)
-import Data.Set qualified as S
-import Data.Text qualified as T
-import Data.Text.Encoding (encodeUtf8)
-import Data.Text.IO qualified as TIO
-import Network.HTTP.Types (status200, status400, status500)
-import Network.Wai (Application, pathInfo, responseLBS)
-import Network.Wai.Handler.Warp (run)
-import System.Environment (getExecutablePath)
-import System.FilePath (takeDirectory, (</>))
+import           Control.Monad.IO.Class   (MonadIO (liftIO))
+import           Data.Aeson               (ToJSON, encode)
+import qualified Data.Array               as A
+import qualified Data.ByteString.Lazy     as BSL
+import           Data.Char                (toLower)
+import           Data.List                (nub, sortBy)
+import           Data.Map.Strict          (Map)
+import qualified Data.Map.Strict          as Map
+import           Data.Ord                 (Down (..), comparing)
+import qualified Data.Set                 as S
+import qualified Data.Text                as T
+import           Data.Text.Encoding       (encodeUtf8)
+import qualified Data.Text.IO             as TIO
+import           GHC.Generics             (Generic)
+import           Network.HTTP.Types       (hContentType, status200, status400,
+                                           status500)
+import           Network.Wai              (Application, pathInfo, responseLBS)
+import           Network.Wai.Handler.Warp (run)
+import           System.Environment       (getExecutablePath)
+import           System.FilePath          (takeDirectory, (</>))
 
 -- Define the Trie data structure
 data Trie = Trie
   { endOfWord :: Bool,
-    children :: Map Char Trie
+    children  :: Map Char Trie
   }
   deriving (Show)
 
@@ -80,7 +84,7 @@ search :: T.Text -> Trie -> Bool
 search word trie = maybe False endOfWord (T.foldl' searchChar (Just trie) word)
   where
     searchChar (Just (Trie _ childs)) c = Map.lookup c childs
-    searchChar Nothing _ = Nothing
+    searchChar Nothing _                = Nothing
 
 main :: IO ()
 main = do
@@ -95,23 +99,35 @@ main = do
 -- let uniqueSolved = nub solved
 -- let sortedSolved = sortBy (comparing (Down . T.length)) uniqueSolved
 
+
+data ResponseStruct = Resp {
+  value :: Maybe [T.Text],
+  error :: Maybe T.Text
+} deriving (Generic, ToJSON)
+
+
 -- A warp application that takes a 16 character string consisting of only a-z. Throws an error if the string is not 16 characters long or characters aren't correct.
 --
 application :: Trie -> Application
 application trie req res = do
   let pathInfoList = pathInfo req
   if null pathInfoList
-    then res $ responseLBS status500 [] "Empty board passed. Must be 16 characters a-z"
+    then res $ responseLBS status500 [(hContentType, "application/json")]
+      (encode $ Resp Nothing (Just "Empty board passed. Must be 16 characters a-z"))
     else do
       let board = T.unpack $ head pathInfoList
       liftIO $ print board
       if length board /= 16 || not (all (`elem` ['a' .. 'z']) board)
-        then res $ responseLBS status400 [] "Invalid board. Must bass 16 characters a-z"
+        then res $ responseLBS status400 [(hContentType, "application/json")]
+         (encode $ Resp Nothing (Just "invalid passed. Must be 16 characters a-z"))
         else do
           let solved = permuteBoard (gameBoard board) trie
           let uniqueSolved = nub solved
           let sortedSolved = sortBy (comparing (Down . T.length)) uniqueSolved
-          res $ responseLBS status200 [] $ BSL.fromStrict $ encodeUtf8 $ T.unlines sortedSolved
+          let jsonData = Resp (Just sortedSolved) Nothing
+          res $ responseLBS status200 [(hContentType, "application/json")]
+            (encode jsonData)
+
 
 -- print $ search (T.pack "thta") trie
 -- print $ map (`search` trie) solved
