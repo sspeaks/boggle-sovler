@@ -2,6 +2,7 @@
 
 module Main where
 
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Array qualified as A
 import Data.ByteString.Lazy qualified as BSL
 import Data.Char (toLower)
@@ -13,10 +14,9 @@ import Data.Set qualified as S
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.IO qualified as TIO
-import Network.HTTP.Types (status200, status400)
+import Network.HTTP.Types (status200, status400, status500)
 import Network.Wai (Application, pathInfo, responseLBS)
 import Network.Wai.Handler.Warp (run)
-import Control.Monad.IO.Class (MonadIO(liftIO))
 import System.Environment (getExecutablePath)
 import System.FilePath (takeDirectory, (</>))
 
@@ -100,15 +100,18 @@ main = do
 application :: Trie -> Application
 application trie req res = do
   let pathInfoList = pathInfo req
-  let board = T.unpack $ head pathInfoList
-  liftIO $ print board
-  if length board /= 16 || not (all (`elem` ['a' .. 'z']) board)
-    then res $ responseLBS status400 [] "Invalid board"
+  if null pathInfoList
+    then res $ responseLBS status500 [] "Empty board passed. Must be 16 characters a-z"
     else do
-      let solved = permuteBoard (gameBoard board) trie
-      let uniqueSolved = nub solved
-      let sortedSolved = sortBy (comparing (Down . T.length)) uniqueSolved
-      res $ responseLBS status200 [] $ BSL.fromStrict $ encodeUtf8 $ T.unlines sortedSolved
+      let board = T.unpack $ head pathInfoList
+      liftIO $ print board
+      if length board /= 16 || not (all (`elem` ['a' .. 'z']) board)
+        then res $ responseLBS status400 [] "Invalid board. Must bass 16 characters a-z"
+        else do
+          let solved = permuteBoard (gameBoard board) trie
+          let uniqueSolved = nub solved
+          let sortedSolved = sortBy (comparing (Down . T.length)) uniqueSolved
+          res $ responseLBS status200 [] $ BSL.fromStrict $ encodeUtf8 $ T.unlines sortedSolved
 
 -- print $ search (T.pack "thta") trie
 -- print $ map (`search` trie) solved
