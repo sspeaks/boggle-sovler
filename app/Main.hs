@@ -111,8 +111,10 @@ data ResponseStruct = Resp {
 
 
 isSquare :: Int -> Bool
-isSquare n = let s = (round . sqrt . fromIntegral $ n)
-              in s == (n `div` s)
+isSquare n = let intArg = fromIntegral n :: Double
+                 roundedSqrt = (round . sqrt $ intArg) :: Int
+                 s = fromIntegral roundedSqrt :: Double
+              in s == (intArg / s)
 
 -- A warp application that takes a 16 character string consisting of only a-z. Throws an error if the string is not 16 characters long or characters aren't correct.
 --
