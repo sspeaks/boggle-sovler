@@ -6,7 +6,6 @@ module Main where
 import           Control.Monad.IO.Class   (MonadIO (liftIO))
 import           Data.Aeson               (ToJSON, encode)
 import qualified Data.Array               as A
-import qualified Data.ByteString.Lazy     as BSL
 import           Data.Char                (toLower)
 import           Data.List                (nub, sortBy)
 import           Data.Map.Strict          (Map)
@@ -14,7 +13,6 @@ import qualified Data.Map.Strict          as Map
 import           Data.Ord                 (Down (..), comparing)
 import qualified Data.Set                 as S
 import qualified Data.Text                as T
-import           Data.Text.Encoding       (encodeUtf8)
 import qualified Data.Text.IO             as TIO
 import           GHC.Generics             (Generic)
 import           Network.HTTP.Types       (hContentType, status200, status400,
@@ -37,7 +35,10 @@ data Trie = Trie
 type GameBoard = A.Array (Int, Int) Char
 
 gameBoard :: String -> GameBoard
-gameBoard exampleBoard = A.array ((0, 0), (3, 3)) $ zip [(i, j) | i <- [0 .. 3], j <- [0 .. 3]] (map toLower exampleBoard)
+gameBoard exampleBoard = A.array ((0, 0), (squareRoot-1, squareRoot-1)) $ zip [(i, j) | i <- [0 .. squareRoot-1], j <- [0 .. squareRoot-1]] (map toLower exampleBoard)
+  where
+    squareRoot :: Int
+    squareRoot = round . sqrt . fromIntegral . length $ exampleBoard
 
 permuteBoard :: GameBoard -> Trie -> [T.Text]
 permuteBoard b t = concatMap (permuteFrom b t S.empty T.empty) startingPositions
@@ -55,10 +56,13 @@ permuteBoard b t = concatMap (permuteFrom b t S.empty T.empty) startingPositions
         Nothing -> []
       where
         c = board A.! (i, j)
-        neighbours = filter (`S.notMember` visited) . filter (inRange board) . filter (\(v1, v2) -> not (v1 == i && v2 == j)) $ [(i + x, j + y) | x <- [-1 .. 1], y <- [-1 .. 1]]
+        neighbours = filter (`S.notMember` visited) . filter inRange . filter (\(v1, v2) -> not (v1 == i && v2 == j)) $ [(i + x, j + y) | x <- [-1 .. 1], y <- [-1 .. 1]]
 
-        inRange :: GameBoard -> (Int, Int) -> Bool
-        inRange _ (i', j') = i' >= 0 && i' <= 3 && j' >= 0 && j' <= 3
+        inRange ::  (Int, Int) -> Bool
+        inRange  (i', j') = let ((mini,minj),(maxi,maxj)) = bounds b
+                              in i' >= mini && i' <= maxi && j' >= minj && j' <= maxj
+        bounds :: GameBoard -> ((Int, Int),(Int, Int))
+        bounds = A.bounds
     startingPositions = A.indices b
 
 -- Create an empty Trie
@@ -106,6 +110,10 @@ data ResponseStruct = Resp {
 } deriving (Generic, ToJSON)
 
 
+isSquare :: Int -> Bool
+isSquare n = let s = (round . sqrt . fromIntegral $ n)
+              in s == (n `div` s)
+
 -- A warp application that takes a 16 character string consisting of only a-z. Throws an error if the string is not 16 characters long or characters aren't correct.
 --
 application :: Trie -> Application
@@ -113,13 +121,13 @@ application trie req res = do
   let pathInfoList = pathInfo req
   if null pathInfoList
     then res $ responseLBS status500 [(hContentType, "application/json")]
-      (encode $ Resp Nothing (Just "Empty board passed. Must be 16 characters a-z"))
+      (encode $ Resp Nothing (Just "Empty board passed. Must be a square number (e.g. 16 chars) of characters and a-z"))
     else do
       let board = T.unpack $ head pathInfoList
       liftIO $ print board
-      if length board /= 16 || not (all (`elem` ['a' .. 'z']) board)
+      if (not . isSquare) (length board) || not (all (`elem` ['a' .. 'z']) board)
         then res $ responseLBS status400 [(hContentType, "application/json")]
-         (encode $ Resp Nothing (Just "invalid passed. Must be 16 characters a-z"))
+         (encode $ Resp Nothing (Just "invalid passed. Must be a square number (e.g. 16 chars) of characters and a-z"))
         else do
           let solved = permuteBoard (gameBoard board) trie
           let uniqueSolved = nub solved
