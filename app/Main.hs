@@ -21,6 +21,7 @@ import           Network.Wai              (Application, pathInfo, responseLBS)
 import           Network.Wai.Handler.Warp (run)
 import           System.Environment       (getExecutablePath)
 import           System.FilePath          (takeDirectory, (</>))
+import           Text.Printf              (printf)
 
 -- Define the Trie data structure
 data Trie = Trie
@@ -31,11 +32,13 @@ data Trie = Trie
 
 type GameBoard = A.Array (Int, Int) Char
 
-gameBoard :: String -> GameBoard
-gameBoard exampleBoard = A.array ((0, 0), (squareRoot - 1, squareRoot - 1)) $ zip [(i, j) | i <- [0 .. squareRoot - 1], j <- [0 .. squareRoot - 1]] (map toLower exampleBoard)
+gameBoard :: T.Text -> GameBoard
+gameBoard exampleBoard = A.array ((0, 0), (squareRoot - 1, squareRoot - 1)) $ zip [(i, j) | i <- [0 .. squareRoot - 1], j <- [0 .. squareRoot - 1]] (map toLower stringBoard)
   where
+    stringBoard :: String
+    stringBoard = T.unpack exampleBoard
     squareRoot :: Int
-    squareRoot = round . sqrt . fromIntegral . length $ exampleBoard
+    squareRoot = (round :: Double -> Int) . sqrt . fromIntegral . T.length $ exampleBoard
 
 permuteBoard :: GameBoard -> Trie -> [T.Text]
 permuteBoard b t = concatMap (permuteFrom b t S.empty T.empty) startingPositions
@@ -54,7 +57,6 @@ permuteBoard b t = concatMap (permuteFrom b t S.empty T.empty) startingPositions
       where
         c = board A.! (i, j)
         neighbours = filter (`S.notMember` visited) . filter inRange . filter (\(v1, v2) -> not (v1 == i && v2 == j)) $ [(i + x, j + y) | x <- [-1 .. 1], y <- [-1 .. 1]]
-
         inRange :: (Int, Int) -> Bool
         inRange (i', j') =
           let ((mini, minj), (maxi, maxj)) = bounds b
@@ -116,24 +118,26 @@ isSquare n =
 application :: Trie -> Application
 application trie req res = do
   let pathInfoList = pathInfo req
-  if null pathInfoList
-    then
+  case pathInfoList of
+    [] -> do
+      liftIO $ printf "Empty board passed.\n"
       res $
         responseLBS
           status500
           [(hContentType, "application/json")]
           (encode $ Resp Nothing (Just "Empty board passed. Must be a square number (e.g. 16 chars) of characters and a-z"))
-    else do
-      let board = T.unpack $ head pathInfoList
-      liftIO $ print board
-      if (not . isSquare) (length board) || not (all (`elem` ['a' .. 'z']) board)
-        then
-          res $
-            responseLBS
-              status400
-              [(hContentType, "application/json")]
-              (encode $ Resp Nothing (Just "invalid passed. Must be a square number (e.g. 16 chars) of characters and a-z"))
-        else do
+
+    (board:_)
+      | (not . isSquare) (T.length board) || not (T.all (`elem` ['a' .. 'z']) board) -> do
+      liftIO $ printf "Invalid board: %s\n" (T.unpack board)
+      res $
+        responseLBS
+          status400
+          [(hContentType, "application/json")]
+          (encode $ Resp Nothing (Just "invalid passed. Must be a square number (e.g. 16 chars) of characters and a-z"))
+
+    (board:_) -> do
+          liftIO $ printf "Received board: %s\n" (T.unpack board)
           let solved = permuteBoard (gameBoard board) trie
           let uniqueSolved = nub solved
           let sortedSolved = sortBy (comparing (Down . T.length)) uniqueSolved
