@@ -1,35 +1,31 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import Control.Monad.IO.Class (MonadIO (liftIO))
-import Data.Aeson (ToJSON, encode)
-import Data.Array qualified as A
-import Data.Char (toLower)
-import Data.List (nub, sortBy)
-import Data.Map.Strict (Map)
-import Data.Map.Strict qualified as Map
-import Data.Ord (Down (..), comparing)
-import Data.Set qualified as S
-import Data.Text qualified as T
-import Data.Text.IO qualified as TIO
-import GHC.Generics (Generic)
-import Network.HTTP.Types
-  ( hContentType,
-    status200,
-    status400,
-    status500,
-  )
-import Network.Wai (Application, pathInfo, responseLBS)
-import Network.Wai.Handler.Warp (run)
-import System.Environment (getExecutablePath)
-import System.FilePath (takeDirectory, (</>))
+import           Control.Monad.IO.Class   (MonadIO (liftIO))
+import           Data.Aeson               (ToJSON, encode)
+import qualified Data.Array               as A
+import           Data.Char                (toLower)
+import           Data.List                (nub, sortBy)
+import           Data.Map.Strict          (Map)
+import qualified Data.Map.Strict          as Map
+import           Data.Ord                 (Down (..), comparing)
+import qualified Data.Set                 as S
+import qualified Data.Text                as T
+import qualified Data.Text.IO             as TIO
+import           GHC.Generics             (Generic)
+import           Network.HTTP.Types       (hContentType, status200, status400,
+                                           status500)
+import           Network.Wai              (Application, pathInfo, responseLBS)
+import           Network.Wai.Handler.Warp (run)
+import           System.Environment       (getExecutablePath)
+import           System.FilePath          (takeDirectory, (</>))
 
 -- Define the Trie data structure
 data Trie = Trie
   { endOfWord :: Bool,
-    children :: Map Char Trie
+    children  :: Map Char Trie
   }
   deriving (Show)
 
@@ -90,7 +86,7 @@ search :: T.Text -> Trie -> Bool
 search word trie = maybe False endOfWord (T.foldl' searchChar (Just trie) word)
   where
     searchChar (Just (Trie _ childs)) c = Map.lookup c childs
-    searchChar Nothing _ = Nothing
+    searchChar Nothing _                = Nothing
 
 main :: IO ()
 main = do
