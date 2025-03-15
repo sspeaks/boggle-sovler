@@ -1,44 +1,46 @@
-{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import           Control.Monad.IO.Class   (MonadIO (liftIO))
-import           Data.Aeson               (ToJSON, encode)
-import qualified Data.Array               as A
-import           Data.Char                (toLower)
-import           Data.List                (nub, sortBy)
-import           Data.Map.Strict          (Map)
-import qualified Data.Map.Strict          as Map
-import           Data.Ord                 (Down (..), comparing)
-import qualified Data.Set                 as S
-import qualified Data.Text                as T
-import qualified Data.Text.IO             as TIO
-import           GHC.Generics             (Generic)
-import           Network.HTTP.Types       (hContentType, status200, status400,
-                                           status500)
-import           Network.Wai              (Application, pathInfo, responseLBS)
-import           Network.Wai.Handler.Warp (run)
-import           System.Environment       (getExecutablePath)
-import           System.FilePath          (takeDirectory, (</>))
-import           Text.Printf              (printf)
+import Control.Monad.IO.Class (MonadIO (liftIO))
+import Data.Aeson (ToJSON, encode)
+import Data.Array qualified as A
+import Data.Char (toLower)
+import Data.List (nub, sortBy)
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
+import Data.Ord (Down (..), comparing)
+import Data.Set qualified as S
+import Data.Text qualified as T
+import Data.Text.IO qualified as TIO
+import GHC.Generics (Generic)
+import Network.HTTP.Types
+  ( hContentType,
+    status200,
+    status400,
+    status500,
+  )
+import Network.Wai (Application, pathInfo, responseLBS)
+import Network.Wai.Handler.Warp (run)
+import System.Environment (getExecutablePath)
+import System.FilePath (takeDirectory, (</>))
+import Text.Printf (printf)
 
 -- Define the Trie data structure
 data Trie = Trie
   { endOfWord :: Bool,
-    children  :: Map Char Trie
+    children :: Map Char Trie
   }
   deriving (Show)
 
 type GameBoard = A.Array (Int, Int) Char
 
-gameBoard :: T.Text -> GameBoard
-gameBoard exampleBoard = A.array ((0, 0), (squareRoot - 1, squareRoot - 1)) $ zip [(i, j) | i <- [0 .. squareRoot - 1], j <- [0 .. squareRoot - 1]] (map toLower stringBoard)
+gameBoard :: T.Text -> (Int, Int) -> GameBoard
+gameBoard exampleBoard (w, h) = A.array ((0, 0), (h - 1, w - 1)) $ zip [(i, j) | i <- [0 .. h - 1], j <- [0 .. w - 1]] (map toLower stringBoard)
   where
     stringBoard :: String
     stringBoard = T.unpack exampleBoard
-    squareRoot :: Int
-    squareRoot = (round :: Double -> Int) . sqrt . fromIntegral . T.length $ exampleBoard
 
 permuteBoard :: GameBoard -> Trie -> [T.Text]
 permuteBoard b t = concatMap (permuteFrom b t S.empty T.empty) startingPositions
@@ -88,7 +90,7 @@ search :: T.Text -> Trie -> Bool
 search word trie = maybe False endOfWord (T.foldl' searchChar (Just trie) word)
   where
     searchChar (Just (Trie _ childs)) c = Map.lookup c childs
-    searchChar Nothing _                = Nothing
+    searchChar Nothing _ = Nothing
 
 main :: IO ()
 main = do
@@ -113,6 +115,12 @@ isSquare n =
       s = fromIntegral roundedSqrt :: Double
    in s == (intArg / s)
 
+textDimToDim :: T.Text -> (Int, Int)
+textDimToDim textDim =
+  let dim = T.unpack textDim
+      [x, y] = map read $ words (map (\c -> if c == 'x' then ' ' else c) dim)
+   in (x, y)
+
 -- A warp application that takes a 16 character string consisting of only a-z. Throws an error if the string is not 16 characters long or characters aren't correct.
 --
 application :: Trie -> Application
@@ -126,24 +134,29 @@ application trie req res = do
           status500
           [(hContentType, "application/json")]
           (encode $ Resp Nothing (Just "Empty board passed. Must be a square number (e.g. 16 chars) of characters and a-z"))
-
-    (board:_)
-      | (not . isSquare) (T.length board) || not (T.all (`elem` ['a' .. 'z']) board) -> do
-      liftIO $ printf "Invalid board: %s\n" (T.unpack board)
+    (_ : []) -> do
       res $
         responseLBS
-          status400
+          status500
           [(hContentType, "application/json")]
-          (encode $ Resp Nothing (Just "invalid passed. Must be a square number (e.g. 16 chars) of characters and a-z"))
-
-    (board:_) -> do
-          liftIO $ printf "Received board: %s\n" (T.unpack board)
-          let solved = permuteBoard (gameBoard board) trie
-          let uniqueSolved = nub solved
-          let sortedSolved = sortBy (comparing (Down . T.length)) uniqueSolved
-          let jsonData = Resp (Just sortedSolved) Nothing
+          (encode $ Resp Nothing (Just "URL format is dimeonsions/board. e.g. /4x4/abcdabcdabcdabcd"))
+    (textDim : textBoard : [])
+      | let (x, y) = textDimToDim textDim in T.length textBoard /= x * y || not (T.all (`elem` ['a' .. 'z']) textBoard) -> do
+          liftIO $ printf "Invalid board: %s\n" (T.unpack textBoard)
           res $
             responseLBS
-              status200
+              status400
               [(hContentType, "application/json")]
-              (encode jsonData)
+              (encode $ Resp Nothing (Just "blahblahblah"))
+    (textDim : textBoard : []) -> do
+      let dim = textDimToDim textDim
+      liftIO $ printf "Received board: %s\n" (T.unpack textBoard)
+      let solved = permuteBoard (gameBoard textBoard dim) trie
+      let uniqueSolved = nub solved
+      let sortedSolved = sortBy (comparing (Down . T.length)) uniqueSolved
+      let jsonData = Resp (Just sortedSolved) Nothing
+      res $
+        responseLBS
+          status200
+          [(hContentType, "application/json")]
+          (encode jsonData)
