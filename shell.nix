@@ -1,5 +1,6 @@
 { pkgs ? import <nixpkgs> { }, ... }:
-pkgs.haskellPackages.shellFor {
+let pythonDeps = pkgs.python3.withPackages (ps: with ps; [ inflect nltk ]);
+in pkgs.haskellPackages.shellFor {
   packages = hpkgs: [
     (import ./default.nix { })
   ];
@@ -7,5 +8,6 @@ pkgs.haskellPackages.shellFor {
     haskell-language-server
     cabal-install
     stylish-haskell
+    pythonDeps
   ];
 }
