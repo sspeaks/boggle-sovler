@@ -128,13 +128,21 @@ application trie req res = do
           (encode $ Resp Nothing (Just "Empty board passed. Must be a square number (e.g. 16 chars) of characters and a-z"))
 
     (board:_)
+      | T.length board > 100 -> do
+      liftIO $ printf "Board too long: %s\n" (T.unpack board)
+      res $
+        responseLBS
+          status400
+          [(hContentType, "application/json")]
+          (encode $ Resp Nothing (Just "Board too long. Must be 100 characters (i.e. 10x10) or fewer."))
+
       | (not . isSquare) (T.length board) || not (T.all (`elem` ['a' .. 'z']) board) -> do
       liftIO $ printf "Invalid board: %s\n" (T.unpack board)
       res $
         responseLBS
           status400
           [(hContentType, "application/json")]
-          (encode $ Resp Nothing (Just "invalid passed. Must be a square number (e.g. 16 chars) of characters and a-z"))
+          (encode $ Resp Nothing (Just "Invalid board. Must be a square number (e.g. 16 chars) of characters and a-z"))
 
     (board:_) -> do
           liftIO $ printf "Received board: %s\n" (T.unpack board)
