@@ -140,7 +140,7 @@ application trie req res = do
           liftIO $ printf "Received board: %s\n" (T.unpack board)
           let solved = permuteBoard (gameBoard board) trie
           let uniqueSolved = nub solved
-          let sortedSolved = sortBy (comparing (Down . T.length)) uniqueSolved
+          let sortedSolved = sortBy (comparing (Down . T.length) <> comparing T.toLower) uniqueSolved
           let jsonData = Resp (Just sortedSolved) Nothing
           res $
             responseLBS

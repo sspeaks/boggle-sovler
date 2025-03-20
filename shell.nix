@@ -9,5 +9,6 @@ in pkgs.haskellPackages.shellFor {
     cabal-install
     stylish-haskell
     pythonDeps
+    zlib
   ];
 }
