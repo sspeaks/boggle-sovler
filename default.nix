@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs> { }, ... }:
+{ pkgs, ... }:
 let
   boggle = pkgs.haskellPackages.callCabal2nix "dict" ./. { };
   overriddenBoggle = boggle.overrideAttrs (oldAttrs: {

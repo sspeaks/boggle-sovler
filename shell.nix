@@ -1,7 +1,7 @@
-{ pkgs ? import <nixpkgs> { }, ... }:
+{ pkgs, ... }:
 pkgs.haskellPackages.shellFor {
   packages = hpkgs: [
-    (import ./default.nix { })
+    (import ./default.nix { inherit pkgs; })
   ];
   nativeBuildInputs = with (pkgs.haskellPackages); [
     haskell-language-server
