@@ -1,6 +1,7 @@
 { pkgs, ... }:
 let
-  boggle = pkgs.haskellPackages.callCabal2nix "dict" ./. { };
+  source = builtins.path { path = ./.; name = "source"; };
+  boggle = pkgs.haskellPackages.callCabal2nix "dict" source { };
   overriddenBoggle = boggle.overrideAttrs (oldAttrs: {
     # Add your additional files here like README, LICENSE, etc.
     extraFiles = [ "./updated_dictionary_keys.txt" ];

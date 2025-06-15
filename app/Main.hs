@@ -134,13 +134,13 @@ application trie req res = do
           status500
           [(hContentType, "application/json")]
           (encode $ Resp Nothing (Just "Empty board passed. Must be a square number (e.g. 16 chars) of characters and a-z"))
-    (_ : []) -> do
+    [_] -> do
       res $
         responseLBS
           status500
           [(hContentType, "application/json")]
           (encode $ Resp Nothing (Just "URL format is dimeonsions/board. e.g. /4x4/abcdabcdabcdabcd"))
-    (textDim : textBoard : [])
+    [textDim, textBoard]
       | let (x, y) = textDimToDim textDim in T.length textBoard /= x * y || not (T.all (`elem` ['a' .. 'z']) textBoard) -> do
           liftIO $ printf "Invalid board: %s\n" (T.unpack textBoard)
           res $
@@ -148,7 +148,7 @@ application trie req res = do
               status400
               [(hContentType, "application/json")]
               (encode $ Resp Nothing (Just "blahblahblah"))
-    (textDim : textBoard : []) -> do
+    [textDim, textBoard] -> do
       let dim = textDimToDim textDim
       liftIO $ printf "Received board: %s\n" (T.unpack textBoard)
       let solved = permuteBoard (gameBoard textBoard dim) trie
@@ -160,3 +160,10 @@ application trie req res = do
           status200
           [(hContentType, "application/json")]
           (encode jsonData)
+    _ -> do
+      liftIO $ printf "Too many args passed"
+      res $
+        responseLBS
+          status400
+          [(hContentType, "application/json")]
+          (encode $ Resp Nothing (Just "Too many args passed."))
