@@ -67,7 +67,7 @@ executable dictionary
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.19
+    build-depends:    base ^>=4.20
                     , aeson
                     , bytestring
 		            , containers
